@@ -1,52 +1,58 @@
 pipeline {
-    agent { label 'worker-node' }
+    agent any
+
+    tools {
+        maven 'Maven-3.8.8'   // change if your Maven installation name is different
+        jdk 'Java-11'         // change if your JDK label is different
+    }
 
     environment {
-        MAVEN_HOME = '/usr/share/maven'
-        SONARQUBE  = 'SonarQube'
+        SONARQUBE = credentials('sonarqube-token')
+        NEXUS_CREDENTIALS = credentials('nexus-credentials')
+        TOMCAT_CREDENTIALS = credentials('tomcat-credentials')
+        RECIPIENT_EMAIL = credentials('recipient-email')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'dev', url: 'https://github.com/papie10/NumberGuessGame.git'
+                git branch: 'dev',
+                    credentialsId: 'Github-token',
+                    url: 'https://github.com/Hajixhayjhay/NumberGuessGame.git'
             }
         }
 
         stage('Build') {
             steps {
-                sh "${MAVEN_HOME}/bin/mvn clean package -DskipTests"
+                sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('Unit Tests') {
             steps {
-                sh "${MAVEN_HOME}/bin/mvn test"
-            }
-            post {
-                always {
-                    junit 'target/surefire-reports/*.xml'
-                }
+                sh 'mvn test'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv("${SONARQUBE}") {
-                    sh "${MAVEN_HOME}/bin/mvn sonar:sonar -Dsonar.projectKey=NumberGuessGame -Dsonar.branch.name=dev"
+                withSonarQubeEnv('sonar') {
+                    sh 'mvn sonar:sonar'
                 }
+            }
+        }
+
+        stage('Upload to Nexus') {
+            steps {
+                sh 'mvn deploy -Dnexus.username=${NEXUS_CREDENTIALS_USR} -Dnexus.password=${NEXUS_CREDENTIALS_PSW}'
             }
         }
 
         stage('Deploy to Tomcat') {
             steps {
-                withCredentials([
-                    sshUserPrivateKey(credentialsId: 'tomcat-credentials', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER'),
-                    string(credentialsId: 'tomcat-ip', variable: 'TOMCAT_IP')
-                ]) {
+                withCredentials([sshUserPrivateKey(credentialsId: 'tomcat-key', keyFileVariable: 'SSH_KEY')]) {
                     sh '''
-                        ARTIFACT=$(ls target/*.war | head -n 1)
-                        scp -o StrictHostKeyChecking=no -i $SSH_KEY $ARTIFACT $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
+                        scp -i $SSH_KEY target/*.war ec2-user@<TOMCAT_PUBLIC_IP>:/opt/tomcat/webapps/
                     '''
                 }
             }
@@ -54,11 +60,10 @@ pipeline {
     }
 
     post {
-        success {
-            echo 'Build and tests succeeded!'
-        }
-        failure {
-            echo 'Build or tests failed.'
+        always {
+            mail to: "${RECIPIENT_EMAIL}",
+                 subject: "Pipeline ${currentBuild.currentResult}: Job ${env.JOB_NAME} Build #${env.BUILD_NUMBER}",
+                 body: "Build finished with status: ${currentBuild.currentResult}\nCheck Jenkins for details."
         }
     }
 }
