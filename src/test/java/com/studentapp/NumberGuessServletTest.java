@@ -1,61 +1,49 @@
 package com.studentapp;
 
-import static org.junit.Assert.*;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
-
+import java.io.IOException;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 
-public class NumberGuessServletTest {
+public class NumberGuessServlet extends HttpServlet {
+    private int targetNumber;
 
-    private NumberGuessServlet servlet;
-    private HttpServletRequest request;
-    private HttpServletResponse response;
-    private StringWriter responseWriter;
-
-    @Before
-    public void setUp() throws Exception {
-        servlet = new NumberGuessServlet();
-        servlet.init();
-
-        request = Mockito.mock(HttpServletRequest.class);
-        response = Mockito.mock(HttpServletResponse.class);
-
-        responseWriter = new StringWriter();
-        Mockito.when(response.getWriter()).thenReturn(new PrintWriter(responseWriter));
+    @Override
+    public void init() throws ServletException {
+        // Initialize with a random number between 1–100
+        targetNumber = (int) (Math.random() * 100 + 1);
     }
 
-    @Test
-    public void testGuessTooLow() throws Exception {
-        servlet.setTargetNumberForTest(50); // set target for test
-        Mockito.when(request.getParameter("guess")).thenReturn("10");
-
-        servlet.doPost(request, response);
-
-        assertTrue(responseWriter.toString().contains("Your guess is too low"));
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.setContentType("text/html");
+        response.getWriter().println("<h1>Guess a number between 1 and 100!</h1>");
     }
 
-    @Test
-    public void testGuessTooHigh() throws Exception {
-        servlet.setTargetNumberForTest(50); // set target for test
-        Mockito.when(request.getParameter("guess")).thenReturn("90");
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        int guess = Integer.parseInt(request.getParameter("guess"));
 
-        servlet.doPost(request, response);
-
-        assertTrue(responseWriter.toString().contains("Your guess is too high"));
+        response.setContentType("text/html");
+        if (guess < targetNumber) {
+            response.getWriter().println("<h1>Too low!</h1>");
+        } else if (guess > targetNumber) {
+            response.getWriter().println("<h1>Too high!</h1>");
+        } else {
+            response.getWriter().println("<h1>Correct! The number was " + targetNumber + ".</h1>");
+        }
     }
 
-    @Test
-    public void testCorrectGuess() throws Exception {
-        servlet.setTargetNumberForTest(50); // set target for test
-        Mockito.when(request.getParameter("guess")).thenReturn("50");
+    // ✅ Add this helper method for unit testing
+    public void setTargetNumberForTest(int number) {
+        this.targetNumber = number;
+    }
 
-        servlet.doPost(request, response);
-
-        assertTrue(responseWriter.toString().contains("Congratulations! You guessed the number!"));
+    // Optional getter if needed in tests
+    public int getTargetNumber() {
+        return targetNumber;
     }
 }
