@@ -19,7 +19,7 @@ pipeline {
             }
         }
 
-        stage('Unit Tests (JUnit)') {
+        stage('Unit Tests') {
             steps {
                 sh "${MAVEN_HOME}/bin/mvn test"
             }
@@ -33,34 +33,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONARQUBE}") {
-                    sh """
-                        ${MAVEN_HOME}/bin/mvn sonar:sonar \
-                        -Dsonar.projectKey=NumberGuessGame \
-                        -Dsonar.branch.name=dev
-                    """
-                }
-            }
-        }
-
-        stage('Upload Artifact to Nexus') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'nexus-credentials',
-                        usernameVariable: 'NEXUS_USER',
-                        passwordVariable: 'NEXUS_PASS'
-                    ),
-                    string(
-                        credentialsId: 'nexus-url',
-                        variable: 'NEXUS_URL'
-                    )
-                ]) {
-                    sh """
-                        ${MAVEN_HOME}/bin/mvn deploy \
-                        -DaltDeploymentRepository=maven-releases::default::${NEXUS_URL} \
-                        -Dusername=$NEXUS_USER \
-                        -Dpassword=$NEXUS_PASS
-                    """
+                    sh "${MAVEN_HOME}/bin/mvn sonar:sonar -Dsonar.projectKey=NumberGuessGame -Dsonar.branch.name=dev"
                 }
             }
         }
@@ -68,20 +41,13 @@ pipeline {
         stage('Deploy to Tomcat') {
             steps {
                 withCredentials([
-                    sshUserPrivateKey(
-                        credentialsId: 'tomcat-credentials',
-                        keyFileVariable: 'SSH_KEY',
-                        usernameVariable: 'SSH_USER'
-                    ),
-                    string(
-                        credentialsId: 'tomcat-ip',
-                        variable: 'TOMCAT_IP'
-                    )
+                    sshUserPrivateKey(credentialsId: 'tomcat-credentials', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER'),
+                    string(credentialsId: 'tomcat-ip', variable: 'TOMCAT_IP')
                 ]) {
-                    sh """
-                        ARTIFACT=\$(ls target/*.war | head -n 1)
-                        scp -o StrictHostKeyChecking=no -i \$SSH_KEY \$ARTIFACT \$SSH_USER@\$TOMCAT_IP:/opt/tomcat/webapps/
-                    """
+                    sh '''
+                        ARTIFACT=$(ls target/*.war | head -n 1)
+                        scp -o StrictHostKeyChecking=no -i $SSH_KEY $ARTIFACT $SSH_USER@$TOMCAT_IP:/opt/tomcat/webapps/
+                    '''
                 }
             }
         }
@@ -89,6 +55,10 @@ pipeline {
 
     post {
         success {
-            withCredentials([string(credentialsId: 'recipient-email', variable: 'RECIPIENT_EMAIL')]) {
-                mail to: "$RECIPIENT_EMAIL",
-                     subject: "Jenkins: SUCCESS - ${JOB_NAME} [${BUILD_NUMBER}]",
+            echo 'Build and tests succeeded!'
+        }
+        failure {
+            echo 'Build or tests failed.'
+        }
+    }
+}
