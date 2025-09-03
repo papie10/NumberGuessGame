@@ -31,10 +31,9 @@ public class NumberGuessServletTest {
 
     @Test
     public void testGuessTooLow() throws Exception {
-        // We force the target number to 50 for testing
-        servlet.setTargetNumberForTest(50);
-
+        servlet.setTargetNumberForTest(50); // set target for test
         Mockito.when(request.getParameter("guess")).thenReturn("10");
+
         servlet.doPost(request, response);
 
         assertTrue(responseWriter.toString().contains("Your guess is too low"));
@@ -42,6 +41,21 @@ public class NumberGuessServletTest {
 
     @Test
     public void testGuessTooHigh() throws Exception {
-        servlet.setTargetNumberForTest(50);
+        servlet.setTargetNumberForTest(50); // set target for test
+        Mockito.when(request.getParameter("guess")).thenReturn("90");
 
-        Mockito.when(request.getParameter("guess")).th
+        servlet.doPost(request, response);
+
+        assertTrue(responseWriter.toString().contains("Your guess is too high"));
+    }
+
+    @Test
+    public void testCorrectGuess() throws Exception {
+        servlet.setTargetNumberForTest(50); // set target for test
+        Mockito.when(request.getParameter("guess")).thenReturn("50");
+
+        servlet.doPost(request, response);
+
+        assertTrue(responseWriter.toString().contains("Congratulations! You guessed the number!"));
+    }
+}
